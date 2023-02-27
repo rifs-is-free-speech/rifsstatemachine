@@ -6,6 +6,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from queue import Queue
 from itertools import cycle
+from alive_progress import alive_bar
 
 from rifsstatemachine.states import State
 
@@ -102,7 +103,7 @@ class StateMachine(ABC):
         self.start_time = pendulum.now()
         self.time = 0
         self.final_transcription = ""
-        self.transcriptions_segments = []
+        self.utterance_segments = []
         self.background_steps = 500
         self.samplerate = 16000
         self.noise_cutoff = 0.15
@@ -170,3 +171,18 @@ class StateMachine(ABC):
         """
         self.time += signal.shape[1]
         self._state.process(signal)
+
+    def progressbar(self, length: int):
+        """Create a progressbar
+
+        Parameters
+        ----------
+        length : int
+            The length of the progressbar
+
+        Returns
+        -------
+        progressbar
+        """
+        with alive_bar(length) as bar:
+            yield bar

@@ -53,11 +53,11 @@ class Predicter:
 
 
 if __name__ == "__main__":
-    from rifsstatemachine.statemachine import Recorder
+    from rifsstatemachine.splitter import Splitter
     import numpy as np
     import sounddevice as sd
 
-    recorder = Recorder(Predicter())
+    recorder = Splitter(Predicter())
 
     def callback(indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
@@ -85,8 +85,7 @@ if __name__ == "__main__":
                 axis=1,
             )
         )
-        paragraphs = recorder.final_transcription.splitlines()
-        for line in paragraphs:
+        for line in recorder.utterance_segments:
             print(line)
         exit(0)
     except Exception as e:
