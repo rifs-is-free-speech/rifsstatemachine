@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import os
 import queue
 import itertools
@@ -9,11 +8,11 @@ import textwrap
 
 import numpy as np
 
-from math import log10, log2, exp
-from abc import ABC, abstractmethod
+from alive_progress import alive_bar
 
-from rifsstatemachine.utils import save_wav, calculate_rms, calculate_dB
-from rifsstatemachine.states import Start
+from math import log2, exp
+
+from rifsstatemachine.states import State, Start
 
 rms = 0.0
 db = -100.0
@@ -29,10 +28,11 @@ class Recorder:
         model:
             The model to use for transcription
         """
-        self.debug = False
+        self.verbose = False
+        self.quiet = False
         self.setState(Start())
         self.model = model
-        self.fixer = PunctFixer(language="da")
+        self.fixer = None  # PunctFixer(language="da")
         self.audio_queue = queue.Queue()
         self.start_time = pendulum.now()
         self.time = 0
@@ -64,7 +64,7 @@ class Recorder:
         state : State
             The state of the recorder
         """
-        if self.debug:
+        if self.verbose:
             print(f"Context: Transitioning to {type(state).__name__}")
         self._state = state
         self._state.context = self
@@ -146,9 +146,8 @@ class Recorder:
             print(" " * os.get_terminal_size().columns, end="\r")
             print(f"{transcription}")
             self.final_transcription += transcription + " "
-            save_wav(audio_sample, transcription)
 
-    def print_halfway(self, audio_sample: np.array) -> None:
+    def halfway(self, audio_sample: np.array) -> None:
         """Prints the transcription halfway through the recording"""
         if audio_sample.shape[1] < 417:
             return
@@ -181,16 +180,13 @@ def record_and_predict(model) -> None:
     --------
     None
     """
+    import sounddevice as sd
 
     recorder = Recorder(model)
 
     def callback(indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
         recorder.put(indata.copy())
-
-    for installed, package in zip(imports, imports_names):
-        if not installed:
-            raise ImportError(f"Please install {package} to use this script")
 
     print(f"Using sounddevice: {sd.query_devices(sd.default.device[0])['name']}")
     try:

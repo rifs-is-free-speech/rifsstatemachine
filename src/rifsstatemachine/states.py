@@ -63,7 +63,9 @@ class Start(State):
         --------
         None
         """
-        print("Measuring background noises...")
+        print(
+            "Measuring background noises..."
+        ) if self.context.verbose and not self.context.quiet else None
         self.context.bar = self.context.progressbar(self.context.background_steps)
         self.context.loading = next(self.context.bar)
         self.context.buffer = audio_sample
@@ -344,7 +346,7 @@ class Predict(State):
                 self.context.last_speech_buffer = np.concatenate(
                     (self.context.last_speech_buffer, self.context.buffer), axis=1
                 )
-                self.context.print_halfway(
+                self.context.halfway(
                     np.concatenate(
                         (
                             self.context.last_speech_buffer,
