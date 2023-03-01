@@ -1,9 +1,34 @@
 """Model used when nothing else is available."""
 
 import torch
+from abc import ABC, abstractmethod
 
 
-class Predicter:
+class BasePredictor(ABC):
+    """Base Predicter used when nothing else is available."""
+
+    @abstractmethod
+    def __init__(self):
+        """Initialize the model."""
+        ...
+
+    @abstractmethod
+    def predict(self, x):
+        """Predicts the transcription of the audio
+
+        Parameters
+        ----------
+        record : np.array
+            Audio data
+        Returns
+        -------
+        str
+
+        """
+        ...
+
+
+class Predictor(BasePredictor):
     """Class that loads the model and predicts the transcription of the audio"""
 
     def __init__(self):
@@ -50,43 +75,3 @@ class Predicter:
         regex = r"\[UNK\]unk\[UNK\]|\[UNK]"
         transcription = re.sub(regex, "", transcription)
         return transcription
-
-
-if __name__ == "__main__":
-    from rifsstatemachine.splitter import Splitter
-    import numpy as np
-    import sounddevice as sd
-
-    recorder = Splitter(Predicter())
-
-    def callback(indata, frames, time, status):
-        """This is called (from a separate thread) for each audio block."""
-        recorder.put(indata.copy())
-
-    print(f"Using sounddevice: {sd.query_devices(sd.default.device[0])['name']}")
-    try:
-        with sd.InputStream(
-            samplerate=16000,
-            device=sd.query_devices(sd.default.device[0])["name"],
-            channels=1,
-            callback=callback,
-        ):
-            while True:
-                recorder.process_next_audio_sample()
-    except KeyboardInterrupt:
-        recorder.predict(
-            np.concatenate(
-                (
-                    recorder.background_buffer[:, :16000],
-                    recorder.last_speech_buffer,
-                    recorder.buffer,
-                    recorder.background_buffer[:, -16000:],
-                ),
-                axis=1,
-            )
-        )
-        for line in recorder.utterance_segments:
-            print(line)
-        exit(0)
-    except Exception as e:
-        raise e

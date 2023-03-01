@@ -3,18 +3,29 @@
 import numpy as np
 from collections import namedtuple
 
-from rifsstatemachine.states import Start
+from rifsstatemachine.states import SkipMeasureBackgroundNoise
 from rifsstatemachine.base import StateMachine
 
 
 class Splitter(StateMachine):
     """Splitter used to split 1 wav file into multiple sound bits of speech."""
 
-    def __init__(self, model=None, verbose: bool = True, quiet: bool = False) -> None:
-        """Initialize the StateMachine"""
+    def __init__(self, model=None, verbose: bool = False, quiet: bool = False) -> None:
+        """Initialize the StateMachine
+
+        Parameters
+        ----------
+        model : Model
+            Optional model to use to check for speech
+        verbose : bool
+            Whether to print the state transitions
+        quiet : bool
+            Whether to silence the output
+        """
         self.setup(verbose=verbose, quiet=quiet)
         self.model = model
-        self.setState(Start())
+        self.setState(SkipMeasureBackgroundNoise())
+        self.disable_background_noise = True
         self.utterance_tuple = namedtuple("Utterance", "start end transcription signal")
 
     def check_for_speech(self, signal: np.array) -> bool:
@@ -29,7 +40,10 @@ class Splitter(StateMachine):
             True if there is speech, False if there is not
         """
         if self.model:
-            return True if self.model.predict(signal) != "" else False
+            if signal.shape[1] >= 100:
+                return True if self.model.predict(signal) != "" else False
+            else:
+                return False
         else:
             return True
 
@@ -79,7 +93,7 @@ class Splitter(StateMachine):
             utterance = self.utterance_tuple(
                 start=self.listen_start,
                 end=self.time,
-                transcription=transcription,
+                transcription="",
                 signal=signal,
             )
             print(

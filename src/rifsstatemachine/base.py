@@ -110,6 +110,7 @@ class StateMachine(ABC):
         self.queuebuffer = np.empty((1, 0))
         self.spinner = cycle(["-", "/", "|", "\\"])
         self._setup_ran = True
+        self.disable_background_noise = False
 
     def put(self, signal: np.array) -> None:
         """Puts the audio sample in the queue
@@ -122,8 +123,7 @@ class StateMachine(ABC):
         -------
         None
         """
-        audio_sample = signal.T
-        self.queuebuffer = np.concatenate((self.queuebuffer, audio_sample), axis=1)
+        self.queuebuffer = np.concatenate((self.queuebuffer, signal), axis=1)
         if self.queuebuffer.shape[1] > 100:
             self.audio_queue.put(self.queuebuffer)
             self.queuebuffer = np.empty((1, 0))

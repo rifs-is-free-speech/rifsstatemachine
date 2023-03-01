@@ -111,7 +111,37 @@ class MeasureBackgroundNoise(State):
             except StopIteration:
                 pass
             self.context.setState(Wait())
-            print("Starting trascription...\n")
+            print(
+                "Starting trascription...\n"
+            ) if self.context.verbose and not self.context.quiet else None
+
+
+class SkipMeasureBackgroundNoise(State):
+    """The start state of the recorder finite state machine"""
+
+    def process(self, audio_sample: np.array) -> None:
+        """Processes the audio sample
+
+        Paramaters:
+        -----------
+        audio_sample: np.array
+            The audio sample to process
+
+        Returns:
+        --------
+        None
+        """
+        self.context.buffer = audio_sample
+        self.context.last_background_rms = pendulum.now()
+        self.context.background_rms = 0.01
+        self.context.background_buffer = np.full(
+            (1, 16000), self.context.background_rms
+        )
+        self.context.last_speech_buffer = np.empty((1, 0))
+        self.context.last_speech_found_time = None
+        self.context.last_predict_time = None
+        self.context.speech_lenght = 0
+        self.context.setState(Wait())
 
 
 class Wait(State):
@@ -155,16 +185,20 @@ class Wait(State):
                 self.context.time - self.context.last_speech_found_time
             ) / self.context.samplerate
             if seconds_since_last_speech_found > 3:
-                self.context.predict(
-                    np.concatenate(
-                        (
-                            self.context.background_buffer[:, :16000],
-                            self.context.last_speech_buffer,
-                            self.context.background_buffer[:, -16000:],
-                        ),
-                        axis=1,
+                if self.context.disable_background_noise:
+                    if self.context.last_speech_buffer.shape[1] >= 100:
+                        self.context.predict(self.context.last_speech_buffer)
+                else:
+                    self.context.predict(
+                        np.concatenate(
+                            (
+                                self.context.background_buffer[:, :8000],
+                                self.context.last_speech_buffer,
+                                self.context.background_buffer[:, -8000:],
+                            ),
+                            axis=1,
+                        )
                     )
-                )
                 self.context.last_speech_buffer = np.empty((1, 0))
                 self.context.last_predict_time = self.context.last_speech_found_time
                 self.context.last_speech_found_time = None
@@ -194,7 +228,7 @@ class Aware(State):
         last_check = (
             self.context.time - self.context.last_check_time
         ) / self.context.samplerate
-        print(next(self.context.spinner), end="\r")
+        print(next(self.context.spinner), end="\r") if not self.context.quiet else None
         if seconds_elapsed <= 1:
             if last_check > 0.1:
                 self.context.last_check_time = self.context.time
@@ -225,6 +259,9 @@ class Listen(State):
         --------
         None
         """
+        self.context.buffer = np.concatenate(
+            (self.context.buffer, audio_sample), axis=1
+        )
         self.context.listen_for_speech(audio_sample)
         if self.context.listen_buffer.shape[1] >= 7923:
             self.context.listen_buffer = self.context.listen_buffer[:, -7923:]
@@ -235,12 +272,20 @@ class Listen(State):
         seconds_elapsed = (
             self.context.time - self.context.listen_start
         ) / self.context.samplerate
-        if (
-            calculate_rms(self.context.listen_buffer)
-            < self.context.background_rms * 2.5
-            or seconds_elapsed > 8
-        ):
-            self.context.setState(Impatient())
+        if self.context.disable_background_noise:
+            if (
+                seconds_elapsed > 2
+                and calculate_rms(self.context.listen_buffer)
+                < self.context.background_rms * 2.5
+            ):
+                self.context.setState(Impatient())
+        else:
+            if (
+                calculate_rms(self.context.listen_buffer)
+                < self.context.background_rms * 2.5
+                or seconds_elapsed > 8
+            ):
+                self.context.setState(Impatient())
 
 
 class Impatient(State):
@@ -258,6 +303,10 @@ class Impatient(State):
         --------
         None
         """
+        self.context.buffer = np.concatenate(
+            (self.context.buffer, audio_sample), axis=1
+        )
+
         self.context.listen_for_speech(audio_sample)
         self.context.listen_buffer = np.concatenate(
             (self.context.listen_buffer, audio_sample), axis=1
@@ -265,6 +314,12 @@ class Impatient(State):
         seconds_elapsed = (
             self.context.time - self.context.listen_start
         ) / self.context.samplerate
+
+        if self.context.disable_background_noise:
+            if seconds_elapsed < 3:
+                self.context.setState(Listen())
+                return
+
         if (seconds_elapsed < 3) and (
             calculate_rms(self.context.listen_buffer)
             < self.context.background_rms * 1.5
@@ -281,9 +336,9 @@ class Impatient(State):
             if self.context.check_for_speech(
                 np.concatenate(
                     (
-                        self.context.background_buffer[:, :16000],
+                        self.context.background_buffer[:, :8000],
                         self.context.buffer,
-                        self.context.background_buffer[:, -16000:],
+                        self.context.background_buffer[:, -8000:],
                     ),
                     axis=1,
                 )
@@ -310,6 +365,11 @@ class Predict(State):
         --------
         None
         """
+
+        self.context.buffer = np.concatenate(
+            (self.context.buffer, audio_sample), axis=1
+        )
+
         seconds_elapsed = (
             self.context.time - self.context.listen_start
         ) / self.context.samplerate
@@ -319,16 +379,20 @@ class Predict(State):
                 self.context.time - self.context.last_speech_found_time
             ) / self.context.samplerate
             if seconds_since_last_speech_found - seconds_elapsed > 3:
-                self.context.predict(
-                    np.concatenate(
-                        (
-                            self.context.background_buffer[:, :16000],
-                            self.context.last_speech_buffer,
-                            self.context.background_buffer[:, -16000:],
-                        ),
-                        axis=1,
+                if self.context.disable_background_noise:
+                    if self.context.last_speech_buffer.shape[1] >= 100:
+                        self.context.predict(self.context.last_speech_buffer)
+                else:
+                    self.context.predict(
+                        np.concatenate(
+                            (
+                                self.context.background_buffer[:, :8000],
+                                self.context.last_speech_buffer,
+                                self.context.background_buffer[:, -8000:],
+                            ),
+                            axis=1,
+                        )
                     )
-                )
                 self.context.last_speech_buffer = np.empty((1, 0))
                 self.context.last_predict_time = self.context.last_speech_found_time
                 self.context.last_speech_found_time = None
@@ -346,30 +410,47 @@ class Predict(State):
                 self.context.last_speech_buffer = np.concatenate(
                     (self.context.last_speech_buffer, self.context.buffer), axis=1
                 )
-                self.context.halfway(
+                if self.context.disable_background_noise:
+                    self.context.halfway(
+                        self.context.last_speech_buffer,
+                    )
+                else:
+                    self.context.halfway(
+                        np.concatenate(
+                            (
+                                self.context.last_speech_buffer,
+                                self.context.background_buffer[:, -8000:],
+                            ),
+                            axis=1,
+                        )
+                    )
+
+                self.context.speech_lenght += seconds_elapsed
+            self.context.buffer = audio_sample
+            self.context.setState(Wait())
+        else:
+            if self.context.disable_background_noise:
+                self.context.predict(
                     np.concatenate(
                         (
                             self.context.last_speech_buffer,
+                            self.context.buffer,
+                        ),
+                        axis=1,
+                    )
+                )
+            else:
+                self.context.predict(
+                    np.concatenate(
+                        (
+                            self.context.background_buffer[:, :16000],
+                            self.context.last_speech_buffer,
+                            self.context.buffer,
                             self.context.background_buffer[:, -16000:],
                         ),
                         axis=1,
                     )
                 )
-                self.context.speech_lenght += seconds_elapsed
-            self.context.buffer = audio_sample
-            self.context.setState(Wait())
-        else:
-            self.context.predict(
-                np.concatenate(
-                    (
-                        self.context.background_buffer[:, :16000],
-                        self.context.last_speech_buffer,
-                        self.context.buffer,
-                        self.context.background_buffer[:, -16000:],
-                    ),
-                    axis=1,
-                )
-            )
             self.context.buffer = audio_sample
             self.context.last_speech_buffer = np.empty((1, 0))
             self.context.last_predict_time = self.context.time
