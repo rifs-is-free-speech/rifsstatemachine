@@ -93,6 +93,9 @@ class MeasureBackgroundNoise(State):
         --------
         None
         """
+        if audio_sample.shape[1] == 0:
+            return
+
         if calculate_rms(audio_sample) > self.context.noise_cutoff:
             return
         self.context.buffer = np.concatenate(
@@ -131,6 +134,9 @@ class SkipMeasureBackgroundNoise(State):
         --------
         None
         """
+        if audio_sample.shape[1] == 0:
+            return
+
         self.context.buffer = audio_sample
         self.context.last_background_rms = pendulum.now()
         self.context.background_rms = 0.01
