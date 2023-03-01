@@ -28,7 +28,7 @@ def wav_to_utterances(
     Sequence[NamedTuple]
         The wav signal split into utterances
     """
-    splitter = Splitter(model, verbose=True)
+    splitter = Splitter(model)
     for chunk in grouper(signal, 10, incomplete="fill", fillvalue=0.0):
         splitter.process(np.asarray([chunk]))
     splitter.predict(
@@ -47,7 +47,7 @@ def wav_to_utterances(
         yield utterance
 
 
-def wav_to_screen(signal: np.array, model: BasePredictor) -> Sequence[NamedTuple]:
+def wav_to_screen(signal: np.array, model: BasePredictor, notebook: bool = True) -> Sequence[NamedTuple]:
     """Split the wav signal into utterances and print to screen based on Recorder
 
     Paramaters:
@@ -56,13 +56,15 @@ def wav_to_screen(signal: np.array, model: BasePredictor) -> Sequence[NamedTuple
         The full wav signal to split
     model: BasePredicter
         The model to use to transcribe the signal.
+    notebook: bool
+        If True will set printing to work in a notebook
 
     Returns:
     --------
     Sequence[NamedTuple]
         The wav signal split into utterances
     """
-    splitter = Recorder(model, verbose=False)
+    splitter = Recorder(model, notebook=notebook)
     for chunk in grouper(signal, 10, incomplete="fill", fillvalue=0.0):
         splitter.process(np.asarray([chunk]))
     splitter.predict(
@@ -81,13 +83,15 @@ def wav_to_screen(signal: np.array, model: BasePredictor) -> Sequence[NamedTuple
         yield utterance
 
 
-def record_to_screen(model: BasePredictor) -> Sequence[NamedTuple]:
+def record_to_screen(model: BasePredictor, notebook: bool = False) -> Sequence[NamedTuple]:
     """Record speech signal into utterances and print to screen based on Recorder
 
     Paramaters:
     -----------
     model: BasePredicter
         The model to use to transcribe the signal.
+    notebook: bool
+        If True will set printing to work in a notebook
 
     Returns:
     --------
@@ -96,7 +100,7 @@ def record_to_screen(model: BasePredictor) -> Sequence[NamedTuple]:
     """
     import sounddevice as sd
 
-    recorder = Recorder(model, verbose=False)
+    recorder = Recorder(model, notebook=notebook)
 
     def callback(indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
