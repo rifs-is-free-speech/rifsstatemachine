@@ -1,6 +1,5 @@
 """Model used when nothing else is available."""
 
-import torch
 from abc import ABC, abstractmethod
 
 
@@ -34,6 +33,7 @@ class Predictor(BasePredictor):
     def __init__(self):
         """Loads the model and the processor"""
         from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+        import torch
 
         self.model = Wav2Vec2ForCTC.from_pretrained(
             "Alvenir/wav2vec2-base-da-ft-nst"
@@ -43,7 +43,7 @@ class Predictor(BasePredictor):
         )
         self.model.eval()
 
-    @torch.no_grad()
+
     def predict(self, record):
         """Predicts the transcription of the audio
         Parameters
@@ -55,6 +55,7 @@ class Predictor(BasePredictor):
         str
             Transcription of the audio
         """
+        import torch
         import re
 
         data = torch.tensor(record)
@@ -64,11 +65,12 @@ class Predictor(BasePredictor):
             return_tensors="pt",
             padding=True,
         )
-        logits = self.model(
-            input_dict["input_values"]
-            .squeeze(1)
-            .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-        ).logits
+        with torch.no_grad():
+            logits = self.model(
+                input_dict["input_values"]
+                .squeeze(1)
+                .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            ).logits
         pred_ids = torch.argmax(logits, dim=-1)
         transcription = self.processor.batch_decode(pred_ids)[0]
 
