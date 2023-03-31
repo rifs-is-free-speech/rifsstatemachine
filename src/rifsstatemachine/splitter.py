@@ -40,7 +40,11 @@ class Splitter(StateMachine):
             True if there is speech, False if there is not
         """
         if self.model:
-            if signal.shape[1] >= 100:
+            if signal.shape[1] >= 100 :
+
+                if signal.shape[1] >= 3 * self.samplerate:
+                    signal = signal[:, -3 * self.samplerate :]
+
                 return True if self.model.predict(signal) != "" else False
             else:
                 return False
