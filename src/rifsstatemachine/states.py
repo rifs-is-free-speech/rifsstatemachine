@@ -334,6 +334,8 @@ class Impatient(State):
         elif seconds_elapsed > 6:
             self.context.setState(Predict())
         else:
+            if seconds_elapsed > 15:
+                self.context.setState(Predict())
             if self.context.check_for_speech(
                 np.concatenate(
                     (
