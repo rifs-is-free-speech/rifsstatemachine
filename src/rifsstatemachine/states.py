@@ -277,6 +277,7 @@ class Listen(State):
                 seconds_elapsed > 2
                 and calculate_rms(self.context.listen_buffer)
                 < self.context.background_rms * 2.5
+                or seconds_elapsed > 8
             ):
                 self.context.setState(Impatient())
         else:
