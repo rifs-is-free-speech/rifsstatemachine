@@ -1,4 +1,5 @@
 """Functions used to use the state machine"""
+from __future__ import annotations
 
 import numpy as np
 
@@ -47,7 +48,9 @@ def wav_to_utterances(
         yield utterance
 
 
-def wav_to_screen(signal: np.array, model: BasePredictor, notebook: bool = True) -> Sequence[NamedTuple]:
+def wav_to_screen(
+    signal: np.array, model: BasePredictor, notebook: bool = True
+) -> Sequence[NamedTuple]:
     """Split the wav signal into utterances and print to screen based on Recorder
 
     Paramaters:
@@ -83,7 +86,9 @@ def wav_to_screen(signal: np.array, model: BasePredictor, notebook: bool = True)
         yield utterance
 
 
-def record_to_screen(model: BasePredictor, notebook: bool = False) -> Sequence[NamedTuple]:
+def record_to_screen(
+    model: BasePredictor, notebook: bool = False
+) -> Sequence[NamedTuple]:
     """Record speech signal into utterances and print to screen based on Recorder
 
     Paramaters:
